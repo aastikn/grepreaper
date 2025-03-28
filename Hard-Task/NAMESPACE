@@ -1,0 +1,8 @@
+# Export the main function
+export(count_rows_with_pattern_parallel)
+
+# Import the necessary packages
+import(data.table)
+importFrom(ggplot2, diamonds)
+import(parallel)
+

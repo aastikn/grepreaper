@@ -1,0 +1,22 @@
+---
+title: "Introduction to myPackage"
+author: "Aastik Narang"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction}
+  %\VignetteEngine{rmarkdown::rmarkdown}
+---
+
+# Introduction to myPackage
+
+This package allows you to count rows in any dataset containing a specific pattern using `grep` and parallel processing.
+
+## Example Usage
+
+```{r}
+library(myPackage)
+
+# Count rows containing the pattern "VS"
+result <- count_rows_with_pattern_parallel("VS", ignore_case = TRUE)
+print(result)
+
