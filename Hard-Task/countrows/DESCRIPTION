@@ -1,0 +1,22 @@
+Package: countrows
+Title: Count Rows Matching a Pattern Using grep
+Version: 0.0.0.9000
+Authors@R: 
+    person("Aastik", "Narang", , "aastik839@gmail.com", role = c("aut", "cre"))
+Description: Provides a function to count rows in a data frame that match a
+    given pattern. It efficiently leverages the system's 'grep -c' command by
+    writing the data to a temporary file, avoiding loading potentially large
+    matched data into R.
+License: MIT
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    data.table (>= 1.9.6) 
+Suggests:
+    knitr,
+    rmarkdown,
+    ggplot2, 
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
