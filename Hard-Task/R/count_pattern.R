@@ -1,57 +1,85 @@
-#' Count Rows Containing a Specific Pattern Using grep in Parallel
+#' Count Rows Containing a Specific Pattern Using grep -c
 #'
-#' @param pattern A character string specifying the pattern to search for within the dataset rows.
-#' @param data The dataset or dataframe in which to search for the pattern. (Default is `NULL`).
-#' @param ignore_case Whether to ignore case (default: FALSE).
-#' @param num_cores The number of cores to use for parallel processing (default: number of available cores).
+#' This function writes the input data frame to a temporary file,
+#' uses the system's `grep -o` command to count the occurrences of the
+#' user-specified pattern, and returns the count. It's designed to be
+#' memory-efficient for large datasets compared to reading matches into R.
 #'
-#' @return An integer representing the number of rows in the dataset where the user-specified pattern is found.
+#' @param pattern A character string specifying the pattern to search for within
+#'   the dataset rows. Passed directly to `grep`.
+#' @param data A data frame or data.table in which to search for the pattern.
+#'   If `NULL` (the default), it will try to use `ggplot2::diamonds`.
+#' @param ignore_case Logical. If `TRUE`, the `-i` flag is added to the `grep`
+#'   command for case-insensitive matching (default: `FALSE`).
 #'
-#' @examples
-#' count_rows_with_pattern_parallel("VS", data = diamonds)
+#' @return An integer representing the number of rows in the data where the
+#'   pattern is found. Returns `0L` if the pattern is not found or no matches are
+#'   returned.
 #'
-#' @import data.table ggplot2 parallel
+#' @importFrom data.table fwrite as.data.table
 #' @export
-count_rows_with_pattern_parallel <- function(pattern, data = NULL, ignore_case = FALSE, num_cores = detectCores()) {
-  # Default to diamonds dataset if no data is provided
+count_rows_with_pattern <- function(pattern, data = NULL, ignore_case = FALSE) {
+  
+  # --- Input Validation and Data Handling ---
+  if (!is.character(pattern) || length(pattern) != 1 || nchar(pattern) == 0) {
+    stop("`pattern` must be a non-empty character string.", call. = FALSE)
+  }
+  if (!is.logical(ignore_case) || length(ignore_case) != 1) {
+    stop("`ignore_case` must be a single logical value (TRUE or FALSE).", call. = FALSE)
+  }
+  
+  data_to_use <- data
+  
   if (is.null(data)) {
-    data <- ggplot2::diamonds
+    if (!requireNamespace("ggplot2", quietly = TRUE)) {
+      stop("Default dataset requires `ggplot2`. Please install it or provide your own `data`.", call. = FALSE)
+    }
+    message("No data provided, using default ggplot2::diamonds dataset.")
+    data_to_use <- ggplot2::diamonds
   }
   
-  # Ensure the provided data is a data.table
-  dt <- as.data.table(data)
-  
-  # Create an in-memory connection (temporary buffer)
-  temp_conn <- rawConnection(raw(0), "r+")
-  
-  # Write the dataset to the temporary connection (in-memory)
-  fwrite(dt, temp_conn)
-  
-  # Create a temporary file buffer and reset the pointer
-  seek(temp_conn, 0)
-  
-  # Function to perform grep on a subset of the data
-  grep_parallel_function <- function(data_chunk) {
-    grep_cmd <- paste("grep", if (ignore_case) "-i" else "", shQuote(pattern))
-    result <- fread(cmd = paste(grep_cmd, "<<<", shQuote(data_chunk)))
-    return(nrow(result))
+  if (!is.data.frame(data_to_use)) {
+    stop("`data` must be a data frame or NULL (to use default).", call. = FALSE)
   }
   
-  # Read data in chunks (simulate chunking by reading a portion of the file into a buffer)
-  chunk_size <- 100000  # Adjust chunk size as needed
-  data_chunks <- list()
+  # --- File Operations ---
+  temp_file <- tempfile(fileext = ".txt")
+  on.exit(unlink(temp_file, force = TRUE), add = TRUE)
   
-  while (TRUE) {
-    # Read the next chunk of data into the in-memory buffer
-    data_chunk <- readBin(temp_conn, "character", n = chunk_size)
-    if (length(data_chunk) == 0) break  # Exit if no data is left
-    
-    data_chunks <- append(data_chunks, list(data_chunk))
+  tryCatch({
+    writeLines(paste(apply(data_to_use, 1, paste, collapse = ","), collapse = ""), temp_file)
+  }, error = function(e) {
+    stop("Error writing data to temporary file: ", e$message, call. = FALSE)
+  })
+  
+  # --- Grep Command Execution ---
+  grep_opts <- "-o" # Use -o to get only the matching parts
+  if (ignore_case) {
+    grep_opts <- paste(grep_opts, "-i")
   }
   
-  # Parallelize the grep processing across multiple chunks
-  matching_rows <- mclapply(data_chunks, grep_parallel_function, mc.cores = num_cores)
+  cmd <- paste("grep", grep_opts, shQuote(pattern), shQuote(temp_file), "| wc -l")
   
-  # Return the total number of matching rows
-  return(sum(unlist(matching_rows)))
+  result_str <- tryCatch({
+    system(cmd, intern = TRUE, ignore.stderr = TRUE)
+  }, warning = function(w) {
+    message("Warning during grep command execution: ", w$message)
+    return("0")
+  }, error = function(e) {
+    stop("Error executing system command 'grep': ", e$message, "\nIs grep installed and in your system's PATH?", call. = FALSE)
+  })
+  
+  if (length(result_str) != 1) {
+    warning("grep command returned unexpected output. Assuming 0 matches.", call. = FALSE)
+    return(0L)
+  }
+  
+  result <- suppressWarnings(as.integer(result_str))
+  
+  if (is.na(result)) {
+    warning("grep command did not return a valid integer count. Assuming 0 matches.", call. = FALSE)
+    return(0L)
+  }
+  
+  return(result)
 }
