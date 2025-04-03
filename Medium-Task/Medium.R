@@ -14,9 +14,7 @@ write.csv(diamonds_file_data,file='diamonds.csv')
 
 
 #using fread with cmd grep to find matching rows
-vs_rows<- fread(cmd = "grep 'VS' diamonds.csv")
+vs_rows<- fread(cmd = "grep -c 'VS' diamonds.csv")
 
-#counting rows
-count_vs<- nrow(vs_rows)
 # 29150 rows containing vs
-print(count_vs)
+print(vs_rows$V1)

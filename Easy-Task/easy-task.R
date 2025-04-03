@@ -4,11 +4,10 @@ library(data.table)
 # Loading the diamonds dataset
 data(diamonds)
 
-# Converting the dataset to a data table for better manipulation
-diamonds_table <- as.data.table(diamonds)
-
 # Using grep function to find rows with VS in the data table 
-matching_rows <- diamonds_table[grep('VS', clarity)]
+matching_rows <- diamonds[apply(diamonds, 1, function(row) {
+  any(grepl("VS", as.character(row)))
+}), ]
 
 # Counting rows that have the pattern
 pattern_count <- nrow(matching_rows)
