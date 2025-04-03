@@ -71,7 +71,7 @@ For the hard task, we've created a full R package called `countrows` that provid
 ### Package Structure
 
 ```
-Hard-Task/
+countrows/
 ├── R/
 │   └── count_pattern.R
 ├── man/
