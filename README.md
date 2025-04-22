@@ -66,21 +66,29 @@ This method is more efficient for large datasets as it leverages the system's gr
 
 ## Hard Task: Creating an R Package
 
-For the hard task, we've created a full R package called `countrows` that provides a function to efficiently count rows matching a pattern using system commands.
+For the hard task, I've created a full R package called `countrows` that provides a function to efficiently count rows matching a pattern using system commands.
 
 ### Package Structure
 
 ```
-countrows/
-├── R/
-│   └── count_pattern.R
-├── man/
-│   └── count_rows_with_pattern.Rd
-├── tests/
-│   └── testthat/
-├── vignettes/
-├── DESCRIPTION
-└── NAMESPACE
+├── countrows
+│   ├── countrows.Rproj
+│   ├── cran-comments.md
+│   ├── DESCRIPTION
+│   ├── Hard-Task.Rproj
+│   ├── man
+│   │   └── count_rows_with_pattern.Rd
+│   ├── NAMESPACE
+│   ├── NEWS.md
+│   ├── R
+│   │   └── count_pattern.R
+│   ├── tests
+│   │   ├── testthat
+│   │   │   └── test_count_patterns.R
+│   │   └── testthat.R
+│   └── vignette
+│       └── introduction.Rmd
+└── DESCRIPTION
 ```
 
 ### Installation
@@ -110,13 +118,77 @@ print(vs_count)
 vs_count_case_insensitive <- count_rows_with_pattern("vs", diamonds, ignore_case = TRUE)
 print(vs_count_case_insensitive)
 ```
+### Code: 
+```
+count_rows_with_pattern <- function(pattern, data = NULL, ignore_case = FALSE) {
+  
+  # --- Input Validation and Data Handling ---
+  if (!is.character(pattern) || length(pattern) != 1 || nchar(pattern) == 0) {
+    stop("`pattern` must be a non-empty character string.", call. = FALSE)
+  }
+  if (!is.logical(ignore_case) || length(ignore_case) != 1) {
+    stop("`ignore_case` must be a single logical value (TRUE or FALSE).", call. = FALSE)
+  }
+  
+  data_to_use <- data
+  
+  if (is.null(data)) {
+    if (!requireNamespace("ggplot2", quietly = TRUE)) {
+      stop("Default dataset requires `ggplot2`. Please install it or provide your own `data`.", call. = FALSE)
+    }
+    message("No data provided, using default ggplot2::diamonds dataset.")
+    data_to_use <- ggplot2::diamonds
+  }
+  
+  if (!is.data.frame(data_to_use)) {
+    stop("`data` must be a data frame or NULL (to use default).", call. = FALSE)
+  }
+  
+  # --- File Operations ---
+  temp_file <- tempfile(fileext = ".txt")
+  on.exit(unlink(temp_file, force = TRUE), add = TRUE)
+  
+  tryCatch({
+    writeLines(paste(apply(data_to_use, 1, paste, collapse = ","), collapse = ""), temp_file)
+  }, error = function(e) {
+    stop("Error writing data to temporary file: ", e$message, call. = FALSE)
+  })
+  
+  # --- Grep Command Execution ---
+  grep_opts <- "-o" # Use -o to get only the matching parts
+  if (ignore_case) {
+    grep_opts <- paste(grep_opts, "-i")
+  }
+  
+  cmd <- paste("grep", grep_opts, shQuote(pattern), shQuote(temp_file), "| wc -l")
+  
+  result_str <- tryCatch({
+    system(cmd, intern = TRUE, ignore.stderr = TRUE)
+  }, warning = function(w) {
+    message("Warning during grep command execution: ", w$message)
+    return("0")
+  }, error = function(e) {
+    stop("Error executing system command 'grep': ", e$message, "\nIs grep installed and in your system's PATH?", call. = FALSE)
+  })
+  
+  if (length(result_str) != 1) {
+    warning("grep command returned unexpected output. Assuming 0 matches.", call. = FALSE)
+    return(0L)
+  }
+  
+  result <- suppressWarnings(as.integer(result_str))
+  
+  if (is.na(result)) {
+    warning("grep command did not return a valid integer count. Assuming 0 matches.", call. = FALSE)
+    return(0L)
+  }
+```
 
 ### Key Features
 
 - **Memory Efficient**: Writes data to a temporary file and uses the system's grep command for pattern matching.
 - **Fast**: Leverages optimized system utilities instead of in-memory R operations.
 - **Flexible**: Supports case-insensitive searching and works with any data frame.
-- **Well-documented**: Includes comprehensive documentation, examples, and tests.
 
 ### Package Details
 
@@ -137,7 +209,5 @@ This approach combines the best of R's data manipulation capabilities with the e
 | Medium | Medium | Better for large datasets | Medium | Medium to large datasets |
 | Hard | Low | Most efficient | High | Production environments, very large datasets |
 
-## Contributing
 
-Contributors, please complete one or more of the tasks described above before contacting the mentors. Your implementations will demonstrate your understanding of R patterns and system integration.
 ```
